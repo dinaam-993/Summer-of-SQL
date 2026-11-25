@@ -1,0 +1,102 @@
+-- SQL murder mystery 15 January 2018
+-- SQL City
+
+
+-- Step 1
+
+select date, type, description
+from crime_scene_report
+where city = 'SQL City' and type = 'murder' and date = '20180115';
+
+-- Result: Security footage shows that there were 2 witnesses. 
+-- The first witness lives at the last house on "Northwestern Dr". 
+-- The second witness, named Annabel, lives somewhere on "Franklin Ave".
+
+
+-- Step 2
+-- Find the highest address number on North
+select max(address_number)
+from person
+where address_street_name = 'Northernwestern Dr';
+
+-- Result: 4919
+
+
+--Step 3
+-- Find witness statements
+select address_street_name, address_number, id, name, license_id, transcript
+from person p            
+join interview i
+on p.id = i.person_id
+where address_street_name = 'Northwestern Dr' and address_number = 4919
+or address_street_name = 'Franklin Ave' and 
+name like 'Annabel%';
+
+-- Result:
+-- Witness 1: I heard a gunshot and then saw a man run out. He had a "Get Fit Now Gym" bag. 
+-- The membership number on the bag started with "48Z". Only gold members have those bags. 
+-- The man got into a car with a plate that included "H42W". MortySchapiro id 14887
+-- Witness 2: I saw the murder happen, 
+-- and I recognized the killer from my gym when I was working out last week on January the 9th.
+-- January 9th the gym when annabel miller was there 
+
+
+-- Step 4
+-- Next step: join Annabel's details to the other tables to see who was at the gym on the 9th when she was there 
+
+select p.address_street_name, p.id, p.name, p.license_id, gm.name, 
+gi.membership_id, gi.check_in_time, gi.check_in_date, gi.check_out_time
+from person p          
+join get_fit_now_member gm
+on p.id = gm.person_id
+join get_fit_now_check_in gi
+on gm.id = gi.membership_id
+where gm.name = 'Annabel Miller'
+and date = '20180109';
+
+-- Result: 
+-- check in time - 1600 
+-- check out time - 1700
+
+
+-- Step 5
+-- Identify the murderer
+
+select p.address_street_name, p.id, p.license_id, gm.name, 
+gi.membership_id, gi.check_in_time, gi.check_in_date, gi.check_out_time, d.plate_number
+from person p          
+join get_fit_now_member gm
+on p.id = gm.person_id
+join get_fit_now_check_in gi
+on gm.id = gi.membership_id
+join drivers_license d
+on p.license_id = d.id
+where check_in_date = 20180109 and membership_id like '48Z%' 
+and plate_number like '%H42W%' and membership_status = 'gold';
+
+-- Result: Jeremy Bowers
+-- Statement: I was hired by a woman with a lot of money.
+-- I don't know her name but I know she's around
+-- 5'5" (65") or 5'7" (67").
+-- She has red hair and she drives a Tesla Model S.
+-- I know that she attended the SQL Symphony Concert
+-- 3 times in December 2017.
+
+
+-- Step 6: Identify who hired Jeremey 
+
+select p.id, p.name, f.event_name, d.height, 
+d.hair_color, d.car_make, d.car_model, count(*) as visit_no
+from person p
+join facebook_event_checkin f
+on p.id = f.person_id
+join drivers_license d
+on p.license_id = d.id
+where d.car_make = 'Tesla' and d.car_model = 'Model S'
+and f.date between 20171201 and 20171231
+and d.hair_color = 'red' and event_name = 'SQL Symphony Concert' 
+and height between 65 and 67
+group by p.id
+having visit_No = 3;
+
+-- Result: Miranda Priestly
