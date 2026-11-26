@@ -1,0 +1,152 @@
+--1--
+select
+	s.customer_id, sum(m.price) as total_amount
+from TIL_PLAYGROUND.CS1_DANNYS_DINER.SALES s
+join TIL_PLAYGROUND.CS1_DANNYS_DINER.MENU m 
+on s.product_id = m.product_id
+group by s.customer_id;
+
+--2--
+select customer_id, count(distinct order_date) as num_days_visited
+from TIL_PLAYGROUND.CS1_DANNYS_DINER.SALES s
+group by customer_id;
+
+
+--3--
+with orders as (select customer_id, order_date, 
+min(order_date) over (partition by customer_id) as first_order_date,
+product_id 
+from TIL_PLAYGROUND.CS1_DANNYS_DINER.SALES
+qualify order_date = first_order_date)
+select o.customer_id, o.first_order_date, o.product_id, m.product_name
+from orders o
+join TIL_PLAYGROUND.CS1_DANNYS_DINER.MENU m
+on o.product_id = m.product_id
+;
+
+
+--4--
+select
+m.product_name, count(*) as quantity
+from TIL_PLAYGROUND.CS1_DANNYS_DINER.SALES as s
+join TIL_PLAYGROUND.CS1_DANNYS_DINER.MENU as m
+on s.product_id = m.product_id
+group by m.product_name
+order by quantity desc
+limit 1;
+
+
+--5--
+with table_m as (
+select s.customer_id,
+m.product_name, count(*) as quantity
+from TIL_PLAYGROUND.CS1_DANNYS_DINER.SALES as s
+join TIL_PLAYGROUND.CS1_DANNYS_DINER.MENU as m
+on s.product_id = m.product_id
+group by s.customer_id, m.product_name),
+ranked_items as (select customer_id, product_name, quantity, 
+dense_rank() over(partition by customer_id
+order by quantity desc) as item_rank
+from table_m)                 
+select customer_id, product_name, quantity
+from ranked_items
+where item_rank = 1;
+
+
+--6--
+with first_p as
+(select s.customer_id, s.order_date, s.product_id, m.product_name, ms.join_date
+from TIL_PLAYGROUND.CS1_DANNYS_DINER.SALES as s
+join TIL_PLAYGROUND.CS1_DANNYS_DINER.MENU as m
+on s.product_id = m.product_id
+join TIL_PLAYGROUND.CS1_DANNYS_DINER.MEMBERS as ms
+on s.customer_id = ms.customer_id
+where s.order_date >= ms.join_date
+order by s.order_date asc),
+ranking_p as (select customer_id, order_date, product_name, 
+dense_rank() over(partition by customer_id 
+order by order_date asc) as rank_order
+from first_p)
+select customer_id, product_name, order_date
+from ranking_p
+where rank_order = 1;
+
+
+--7--
+with table_k as(
+select s.customer_id, s.order_date, s.product_id, m.product_name, ms.join_date
+from TIL_PLAYGROUND.CS1_DANNYS_DINER.SALES as s
+join TIL_PLAYGROUND.CS1_DANNYS_DINER.MENU as m
+on s.product_id = m.product_id
+join TIL_PLAYGROUND.CS1_DANNYS_DINER.MEMBERS as ms
+on s.customer_id = ms.customer_id
+where s.order_date < ms.join_date
+order by s.order_date desc),
+table_b as (select customer_id, order_date, product_name,
+dense_rank()over(partition by customer_id order by order_date desc) as purchase_rank
+from table_k)
+select customer_id, product_name, order_date
+from table_b
+where purchase_rank = 1;
+
+
+
+--8--
+
+select s.customer_id, sum(price) as total_amount, count(product_name) as quantity
+from TIL_PLAYGROUND.CS1_DANNYS_DINER.SALES as s
+join TIL_PLAYGROUND.CS1_DANNYS_DINER.MENU as m
+on s.product_id = m.product_id
+join TIL_PLAYGROUND.CS1_DANNYS_DINER.MEMBERS as ms
+on s.customer_id = ms.customer_id
+where s.order_date < ms.join_date
+group by s.customer_id;
+
+
+--9--
+with table_x as(
+select s.customer_id, sum(case when m.product_name = 'sushi' then m.price*20 else m.price*10 end) as points
+from TIL_PLAYGROUND.CS1_DANNYS_DINER.SALES as s
+join TIL_PLAYGROUND.CS1_DANNYS_DINER.MENU as m
+on s.product_id = m.product_id
+group by s.customer_id)
+select customer_id, sum(points) as total_points
+from table_x
+group by customer_id;
+
+  
+ --10--
+with table_nn as (
+select s.customer_id, s.order_date, s.product_id, m.product_name, ms.join_date, m.price
+from TIL_PLAYGROUND.CS1_DANNYS_DINER.SALES as s
+join TIL_PLAYGROUND.CS1_DANNYS_DINER.MENU as m
+on s.product_id = m.product_id
+join TIL_PLAYGROUND.CS1_DANNYS_DINER.MEMBERS as ms
+on s.customer_id = ms.customer_id
+where s.order_date < date('2021-02-01')), 
+tables_wo as(
+select customer_id, order_date, product_name,join_date, case when order_date between join_date and join_date + 
+interval '6 days' then TRUE else FALSE end as first_week, price
+from table_nn)
+select customer_id, sum(case when first_week = 'true' then price*20
+when product_name = 'sushi' then price*20 
+else price *10 
+end) as total_points
+from tables_wo
+group by customer_id;
+
+
+--bonus--
+with table_y as(
+select s.customer_id, s.order_date, m.product_name, m.price, 
+case when s.order_date>=ms.join_date then 'Y' else 'N' end as member
+from TIL_PLAYGROUND.CS1_DANNYS_DINER.SALES as s
+join TIL_PLAYGROUND.CS1_DANNYS_DINER.MENU as m
+on s.product_id = m.product_id
+left join TIL_PLAYGROUND.CS1_DANNYS_DINER.MEMBERS as ms
+on s.customer_id = ms.customer_id)
+select customer_id, order_date, product_name, price, member,
+case when member ='Y' then 
+dense_rank() over(partition by customer_id, member order by order_date) else null end
+as ranking
+from table_y;
