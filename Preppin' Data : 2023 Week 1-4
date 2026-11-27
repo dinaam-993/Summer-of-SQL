@@ -1,0 +1,114 @@
+-- 2023 WEEK 1
+-- Total Values of Transactions by each bank
+with table_one as(
+select split_part(transaction_code, '-', 1) as Bank, value
+from pd2023_wk01) 
+select bank, sum(value) as total_amt
+from table_one;
+
+-- Total Values by Bank, Day of the Week and Type of Transaction (Online or In-Person)
+with table_two as
+(select split_part(transaction_code, '-', 1) as Bank, value, 
+case when online_or_in_person = 1 then 'Online' 
+else 'In-Person' end as online_or_in_person, trim(to_char(to_timestamp(
+transaction_date, 'DD/MM/YYYY HH24:MI:SS'), 'DY')) as day_name
+from pd2023_wk01)
+select bank, day_name, online_or_in_person, sum(value) as value
+from table_two
+group by bank, day_name, online_or_in_person;
+
+
+-- Total Values by Bank and Customer Code
+with table_three as(
+select split_part(transaction_code, '-', 1) as Bank, value, customer_code
+from pd2023_wk01) 
+select Bank, customer_code, sum(value) as total_value
+from table_three
+group by Bank, customer_code
+;
+
+
+
+
+--2023 WEEK 2--
+SELECT 'GB' || check_digits|| swift_code|| replace(sort_code, '-', '') || to_varchar(account_number) as IBAN
+FROM pd2023_wk02_transactions tr
+INNER JOIN
+pd2023_wk02_swift_codes sc
+ON tr.bank = sc.bank;
+
+
+
+
+--2023 week 3--
+use database TIL_PLAYGROUND;
+USE SCHEMA PREPPIN_DATA_INPUTS;
+
+WITH targets as (select *
+from TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK03_TARGETS
+unpivot (targets for Quarter in (Q1, Q2, Q3, Q4))),
+
+transact as(
+SELECT sum(value) as total_amt, case when online_or_in_person = 1 then 'Online' else 'In-Person' end as online_or_in_person, 'Q' || date_part(quarter, to_timestamp(transaction_date, 'DD/MM/YYYY HH24:MI:SS')) as Quarter
+FROM TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK01
+WHERE transaction_code like '%DSB%'
+group by online_or_in_person, Quarter)
+
+Select ts.online_or_in_person, replace(ts.quarter,'Q', '')::integer as Quarter, ta.targets, ts.total_amt as total_value, ts.total_amt - ta.targets as variance
+from transact ts
+inner join targets ta
+on ts.quarter = ta.quarter
+and ts.online_or_in_person = ta.online_or_in_person
+order by ts.online_or_in_person, quarter; 
+
+
+
+
+--2023 week 4--
+WITH PIVOT_TABLE AS (SELECT ID, DATEADD('day', Joining_Day -1, Monthdate) as Join_Date, Account_Type, Ethnicity, Date_of_Birth
+FROM (
+SELECT *, TO_DATE('01/01/2023', 'DD/MM/YYYY') AS Monthdate
+FROM TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK04_JANUARY
+UNION ALL
+SELECT *, TO_DATE('01/02/2023', 'DD/MM/YYYY') AS Monthdate
+FROM TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK04_FEBRUARY
+UNION ALL 
+SELECT * , TO_DATE('01/03/2023', 'DD/MM/YYYY') AS Monthdate
+FROM TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK04_MARCH
+UNION ALL 
+SELECT * , TO_DATE('01/04/2023', 'DD/MM/YYYY') AS Monthdate
+FROM TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK04_APRIL
+UNION ALL 
+SELECT * , TO_DATE('01/05/2023', 'DD/MM/YYYY') AS Monthdate
+FROM TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK04_MAY
+UNION ALL 
+SELECT * , TO_DATE('01/06/2023', 'DD/MM/YYYY') AS Monthdate
+FROM TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK04_JUNE
+UNION ALL 
+SELECT * , TO_DATE('01/07/2023', 'DD/MM/YYYY') AS Monthdate
+FROM TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK04_JULY
+UNION ALL 
+SELECT * , TO_DATE('01/08/2023', 'DD/MM/YYYY') AS Monthdate
+FROM TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK04_AUGUST
+UNION ALL 
+SELECT * , TO_DATE('01/09/2023', 'DD/MM/YYYY') AS Monthdate
+FROM TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK04_SEPTEMBER
+UNION ALL 
+SELECT * , TO_DATE('01/10/2023', 'DD/MM/YYYY') AS Monthdate
+FROM TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK04_OCTOBER
+UNION ALL 
+SELECT * , TO_DATE('01/11/2023', 'DD/MM/YYYY') AS Monthdate
+FROM TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK04_NOVEMBER
+UNION ALL 
+SELECT * , TO_DATE('01/12/2023', 'DD/MM/YYYY') AS Monthdate
+FROM TIL_PLAYGROUND.PREPPIN_DATA_INPUTS.PD2023_WK04_DECEMBER)
+PIVOT(min(VALUE) for DEMOGRAPHIC in ('Account Type', 'Date of Birth', 'Ethnicity'))
+AS E (ID, Joining_Day, MonthDate,Account_Type,Date_of_Birth, Ethnicity)), 
+base_table as(
+SELECT ID, Join_Date,Account_Type,Ethnicity, to_date(Date_of_Birth, 'MM/DD/YYYY') as Date_of_Birth, row_number() OVER(PARTITION BY ID ORDER BY Join_Date ASC) as rank
+FROM pivot_table
+ORDER BY ID ASC)
+SELECT *
+FROM base_table
+WHERE rank =1;
+
